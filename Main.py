@@ -1,8 +1,9 @@
 from MiniReadability import MiniReadability
+import sys
 
-
-# url = "https://lifehacker.ru/2014/11/27/kursy-ot-google/"
-print("Write URL")
-url = input()
-t = MiniReadability(url)
+if len(sys.argv) == 2:
+    t = MiniReadability(sys.argv[1])
+else:
+    print("Write URL")
+    t = MiniReadability(input())
 print("\n" + t.text())
