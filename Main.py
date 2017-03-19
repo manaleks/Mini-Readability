@@ -6,4 +6,4 @@ if len(sys.argv) == 2:
 else:
     print("Write URL")
     t = MiniReadability(input())
-print("\n" + t.text())
+print("File " + t.name_of_file() + " is created. Bye Bye")
