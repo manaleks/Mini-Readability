@@ -1,5 +1,5 @@
 import urllib.request
-from html.parser import HTMLParser
+from bs4 import BeautifulSoup
 
 
 class MiniReadability(object):
@@ -23,7 +23,6 @@ class MiniReadability(object):
         self.__import_site()
         self.__create_new_text_file()
 
-    # TODO
     # input method use urllib
     def __import_site(self):
 
@@ -31,16 +30,19 @@ class MiniReadability(object):
         try:
             site = urllib.request.urlopen(self.__url).read()
         except:
-            print('ERROR!!! Unreadable URL')
+            print('That is unreadable URL')
             exit(0)
 
         try:
             self.__text = site.decode()
-
+        # Some sites don't decoding with utf-8
         except:
-            self.__text = site.decode("cp1251")
-        #    print('ERROR!!! Problem with site decoding')
-        #    exit(0)
+            try:
+                self.__text = site.decode("cp1251")
+            # If something is wrong
+            except:
+                print('It is untranslated site code')
+                exit(0)
 
     # All working with text file
     def __create_new_text_file(self):
@@ -55,63 +57,83 @@ class MiniReadability(object):
         new_file.write(self.__text)
         new_file.close()
 
-    # Work with content of text. TODO
+    # Work with content of text.
     def __create_text(self):
 
-        while self.__text.find("<p ") != -1:
-            to_delete = self.search_text_between(self.__text, "<p ", "</p>", mode=1)
-            self.__text = self.__text.replace(to_delete, "")
+        if self.__text.find('<article') != -1:
+            self.__text = self.__text[self.__text.find('<article'): self.__text.rfind('</article>')]
 
-        while self.__text.find("<li ") != -1:
-            to_delete = self.search_text_between(self.__text, "<li ", "</li>", mode=1)
-            self.__text = self.__text.replace(to_delete, "")
+        # Deleting impostors
+        impostors = ["<li><", "<li>\n", "<li ", "<p><"] # , "</ul></li>"]
+        for imp in impostors:
+            self.__text = self.__text.replace(imp, '')
 
-        while self.__text.find("<li><a") != -1:
-            to_delete = self.search_text_between(self.__text, "<li><a", "</li>", mode=1)
-            self.__text = self.__text.replace(to_delete, "")
-        self.__text = self.__text.replace("</ul></li>", "")
+        # Taking all inside only <p>...</p> and <li>...</li>
+        full_text = self.__text
+        self.__text = ""
 
-        # self.__text = self.__text[self.__text.find('<body'): self.__text.find('</body>')]
-        # self.__text = self.__text[self.__text.find('</header>') + len('</header>'): self.__text.find('<footer')]
-        # self.__text = self.__text[self.__text.find('<p>'): self.__text.find('<div id="content-bottom">')]
+        header = "    " + self.search_text_between(full_text, "<h1", "</h1>", mode=1) + "\n\n"
 
-        self.__text = self.__text.replace('<p>', "@@@")
-        self.__text = self.__text.replace('<li>', "@@@· ")
-        tags = ['</p>', '</li>']
-        for tag in tags:
-            self.__text = self.__text.replace(tag, "$$$%%%")
+        tags = [["<h2>", "<h3>", "<p>", "<li>", "<dd>"], ["</h2>", "</h3>", "</p>", "</li>", "</dd>"]]
+
+        # Running on tags and checking them
+        while len(tags[0]) != 0:
+            run_away = False
+            min = len(full_text)
+
+            for tag in tags[0]:
+                index = tags[0].index(tag)
+                place_of_tag = full_text.find(tag)
+
+                if place_of_tag == -1:
+                    tags[0].pop(index)
+                    tags[1].pop(index)
+                    run_away = True
+                    break
+                else:
+                    if place_of_tag < min:
+                        min = place_of_tag
+                        min_index = index
+
+            # if all right, pasting fragment
+            if len(tags[0]) != 0 and run_away is False:
+                to_paste = self.search_text_between(full_text, tags[0][min_index], tags[1][min_index])
+                if to_paste != "":
+                    if tags[0][min_index] == "<li>":
+                        self.__text += "· " + to_paste + "\n"
+                    if tags[0][min_index] == "<p>" or tags[0][min_index] == "<dd>":
+                        self.__text += to_paste + "\n"
+                    if tags[0][min_index] == "<h2>" or tags[0][min_index] == "<h3>":
+                        # h2, h3 have "    " before text
+                        self.__text += "    " + to_paste + "\n"
+                full_text = full_text[min + 1:]
 
         if self.__text == "":
-            print("This site has not text content")
+            print("This site has not right text content")
             exit(0)
 
-        self.__text = self.__text[self.__text.find("@@@"): self.__text.rfind("%%%")]
-        self.__text = "%%%" + self.__text
-        #print(self.__text)
-        while self.__text.find('@@@') != -1:
-            self.__mega_replace('%%%', '$$$', '@@@', '$$$')
+        self.__text = header + self.text()
 
-
-
-
-    # Working with format of text. TODO
+    # Working with text format.
     def __make_text_beautiful(self):
 
+        # Working with links. Translating that to [...] format.
         while self.__text.find('<a') != -1:
-            self.__mega_replace('<a', '</a>', '=', ' target', 'url')
+            self.__mega_replace('<a', '</a>', '>', '<', 'url')
 
-        while self.__text.find('<span') != -1:
-            self.__mega_replace('<span', 'span>', '>', '</')#, "without \n")
+        self.__text = self.__text.replace("[]", "[inside link]")
 
-        symbols = ['<b>', '</b>', '<i>', '</i>', '<small>', '</small>', '<br>', '<br />']
-        for sym in symbols:
-            self.__text = self.__text.replace(sym, '')
-
-        self.__text = self.__text.replace("[]", "")
+        # Deleting unnecessary empty lines.
         while self.__text.find("\n\n") != -1:
             self.__text = self.__text.replace("\n\n", "\n")
-        self.__text = self.__text.replace(" ", " ")  # It is changing BAD-HTML-space to normal space
 
+        soup = BeautifulSoup(self.__text, "html.parser")
+        self.__text = soup.get_text()
+
+        # It is changing BAD-HTML-space to normal space
+        self.__text = self.__text.replace(" ", " ")
+
+# ------------------------------------------------------------# Making strings length = 80 symbols
         text_list = list(self.__text)
         self.__text = ""
 
@@ -126,13 +148,11 @@ class MiniReadability(object):
             symbols_count += 1
             if sym == " ":
                 last_space = count-1
-
             # This is old '\n'. That is just making indent between paragraphs.
             if sym == "\n":
                 text_list[count - 1] += '\n'
                 symbols_count = 0
                 last_space = 0
-
             # This is new '\n'. Needed new line for long string.
             if symbols_count >= 80:
                 # No last space. Needed word separation.
@@ -146,6 +166,7 @@ class MiniReadability(object):
                     symbols_count = count - last_space
                     last_space = 0
 
+# ------------------------------------------------- Returning back to __text new 80-length-strings
         for sym in text_list:
             self.__text += sym
 
@@ -156,7 +177,7 @@ class MiniReadability(object):
 
         if self.__name_of_file.find('/') != -1:
             self.__name_of_file = self.__name_of_file[self.__name_of_file.find("/"):]
-            self.__name_of_file = self.__name_of_file[:self.__name_of_file.find(".html")]
+        self.__name_of_file = self.__name_of_file[:self.__name_of_file.find(".html")]
 
         self.__name_of_file = r"[CUR_DIR]" + self.__name_of_file + ".txt"
 
@@ -167,14 +188,17 @@ class MiniReadability(object):
 
     # Replacing fragment to fragment, that is in the first fragment.
     def __mega_replace(self, marker_before, marker_after, marker_before_inside, marker_after_inside, mode=""):
+
         fragment_to_replacement = self.search_text_between(self.__text, marker_before, marker_after, 3)
         new_fragment = self.search_text_between(fragment_to_replacement, marker_before_inside, marker_after_inside)
+        url_fragment = self.search_text_between(fragment_to_replacement, "=", " ")[1:-1]
+
+        if url_fragment[0:4] != "http":
+            url_fragment = ""
         if mode == "":
-            self.__text = self.__text.replace(fragment_to_replacement, new_fragment + "\n")
-        if mode != "" and mode != "url":
             self.__text = self.__text.replace(fragment_to_replacement, new_fragment)
         if mode == "url":
-            self.__text = self.__text.replace(fragment_to_replacement, '[' + new_fragment + ']')
+            self.__text = self.__text.replace(fragment_to_replacement, new_fragment + ' [' + url_fragment + ']')
 
     # This method return fragment between two markers. (mode = 0) => without markers. Else => with them.
     @staticmethod
