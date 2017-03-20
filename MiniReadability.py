@@ -2,6 +2,7 @@ import urllib.request
 from bs4 import BeautifulSoup
 
 
+
 class MiniReadability(object):
 
     __url = ""
@@ -26,23 +27,13 @@ class MiniReadability(object):
     # input method use urllib
     def __import_site(self):
 
-        site = b''
-        try:
-            site = urllib.request.urlopen(self.__url).read()
-        except:
-            print('That is unreadable URL')
-            exit(0)
+        site = urllib.request.urlopen(self.__url).read()
 
         try:
-            self.__text = site.decode()
-        # Some sites don't decoding with utf-8
+            self.__text = site.decode("cp1251")
         except:
-            try:
-                self.__text = site.decode("cp1251")
-            # If something is wrong
-            except:
-                print('It is untranslated site code')
-                exit(0)
+            self.__text = site.decode("utf8", "ignore")
+
 
     # All working with text file
     def __create_new_text_file(self):
@@ -59,7 +50,7 @@ class MiniReadability(object):
 
     # Work with content of text.
     def __create_text(self):
-
+        
         if self.__text.find('<article') != -1:
             self.__text = self.__text[self.__text.find('<article'): self.__text.rfind('</article>')]
 
@@ -109,8 +100,7 @@ class MiniReadability(object):
                 full_text = full_text[min + 1:]
 
         if self.__text == "":
-            print("This site has not right text content")
-            exit(0)
+            raise Exception("Empty text content")
 
         self.__text = header + self.text()
 
